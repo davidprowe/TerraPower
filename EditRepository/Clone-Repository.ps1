@@ -6,23 +6,29 @@
             $SourceRepo,
             [Parameter(Mandatory=$true)]
             [String]
-            $DestinationRepo,
+            $DestinationRepo <#,
             [Parameter(Mandatory=$false)]
             [String]
-            $NewTfVarsName,
+            $Backend,
+            [Parameter(Mandatory=$false)]
+            [String]
+            $Encrypt,
             [Parameter(Mandatory=$false)]
             [String]
             $Bucket,
             [Parameter(Mandatory=$false)]
             [String]
-            $Region,
-            [Parameter(Mandatory=$false)]
-            [String]
             $Key,
             [Parameter(Mandatory=$false)]
             [String]
-            $Encrypt
-        )
+            $Region,
+            [Parameter(Mandatory=$false)]
+            [String]
+            $Commands,
+            [Parameter(Mandatory=$false)]
+            [String]
+            $OptVarsFile   #> 
+        )#END PARAMETER ENTRY
 
     #check path for source
     if (!(Test-Path $SourceRepo)) {Write-warning "-message Folder: `"$SourceRepo`" Does not exist.  Please specify a valid Source repository"
@@ -43,6 +49,37 @@
                 Copy-item -literalpath $_.fullname -destination $DestinationRepo
             } #end copying source files into the destination repo.
             #Update terraform.tfvars file
+            $tfvarfile = $DestinationRepo + "\terraform.tfvars"
+            $tfcontent = get-content $tfvarfile
+            $tfcontentNewVars = @()
+            #fix - only replace spaces on lines with an equal sign
+            $tfcontent = $tfcontent.Replace(" ","")
+                $i = 0
+                foreach ($c in $tfcontent){
+                    if ($c -like "*=*"){
+                        $c = $c.Replace(" ","") #remove insane number of spaces
+                        if (($c.split("="))[1].length -eq 1) {
+                            $c = ($c.split("=")[0]) + " = " + ($c.Split("=")[1]).replace("$($c.Split('=')[1])","$($tfcontent[($i+1)])")
+                        }#if length after = is 1 or less, go to next line
+                        else{
+                            $c = $c.Replace("="," = ")
+
+                        }#add back spaces
+                     $tfcontentNewVars += $c   
+                    }#end if line contains an =
+                    $i++
+                }#end parsing variables from current tfcontent file into var tfcontentnewvars
+                if ($PSBoundParameters.ContainsKey('Key') -eq $true) {
+                    $i = 0
+                    foreach ($line in $tfcontentNewVars){
+                        if ($line -match "Key"){
+                            $line
+                            $tfcontentNewVars[$i] = $line.split("=")[0] + " = " + ($line.split("=")[1].replace($($line).split("=")[1],$key))
+                        }#end if match Key
+                        $i++
+                    }
+                }
+
 
 
             #update _backend.tf

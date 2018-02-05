@@ -29,7 +29,8 @@
             [String]
             $OptVarsFile   #> 
         )#END PARAMETER ENTRY
-
+        #Need to update the beginning to have destination repo set to a variable that takes the last folder or name of the path given
+        # rename item on backend does not work if a full path is entered for destination repo
     #check path for source
     if (!(Test-Path $SourceRepo)) {Write-warning "-message Folder: `"$SourceRepo`" Does not exist.  Please specify a valid Source repository"
         BREAK
@@ -41,10 +42,10 @@
         {
             #successfully found tfvar, now to make a destination directory for copying all source files
             if ((test-path $DestinationRepo) -eq 1) {write-host $DestinationRepo already exists. Skipping folder creation.}
-            else {New-Item $DestinationRepo -ItemType Folder
+            else {New-Item $DestinationRepo -ItemType Directory
                 } #end creation of new destination repo folder
             #write-host sourcedir contains tfvar
-            get-childitem -path ($sourcerepo) -recurse | Where-Object -Property FullName -notmatch ".terraform" | `
+            get-childitem -path ($sourcerepo) -recurse | Where-Object -Property FullName -Notlike "*.terraform*" | `
             Foreach-object {
                 Copy-item -literalpath $_.fullname -destination $DestinationRepo
             } #end copying source files into the destination repo.
@@ -73,14 +74,48 @@
                     $i = 0
                     foreach ($line in $tfcontentNewVars){
                         if ($line -match "Key"){
-                            $line
-                            $tfcontentNewVars[$i] = $line.split("=")[0] + " = " + ($line.split("=")[1].replace($($line).split("=")[1],$key))
+                                   $tfcontentNewVars[$i] = $line.split("=")[0] + " = " + ($line.split("=")[1].replace($($line).split("=")[1],($key+".tfstate")))
                         }#end if match Key
                         $i++
-                    }
-                }
+                    }#end new line match and replace
+                }#end psbound check for key variable
+                else{
+                    $i = 0
+                    foreach ($line in $tfcontentNewVars){
+                        if ($line -match "Key"){
+                                #split destination repo to the last folder if a full path is given
+                                if($DestinationRepo[$destinationrepo.Length -1] -eq "\"){
+                                    $l = $DestinationRepo.Length -1
+                                    $DestinationRepo = $DestinationRepo.Substring(0,$l)
+                                }#if destinationrepo ends in "\" remove the \ for splitting of name
+                                else{}#do nothing if the last character is not \
 
+                                if($DestinationRepo.Split("\").Count -gt 1){
+                                    $key = ($DestinationRepo.Split("\"))[($DestinationRepo.Split("\").count-1)]
+                                }#end if check to see if destination repo is full folder path
+                                else{
+                                    $key = $DestinationRepo
+                                }#end else check to se if destination repo is not full folder path
+                                   $tfcontentNewVars[$i] = $line.split("=")[0] + " = " + ($line.split("=")[1].replace($($line).split("=")[1],($key+".tfstate")))
+                        }#end if match Key
+                        $i++
+                    }#end new line match and replace on tfcontentnewvars
 
+                } #end no Key variable set - took key setting from tfcontentnewvars and imported it into the tfcontent file
+                #take all necessary variables from tfcontentnewvars and enter into tfcontent
+                $tfupdatelist = @("backend","encrypt","bucket","key","region","commands")
+                foreach($tf in $tfupdatelist){
+                    $i = 0
+                    foreach ($line in $tfcontent){
+                        if ($line -match $tf){
+                                   $tfcontent[$i] = $tfcontentNewVars -match $tf
+                        }#end if match Key
+                        $i++
+                    }#end new line match and replace
+
+                }#end updating tfcontent with variables from tfcontentnewvars
+                $tfcontent|Out-File -FilePath ($DestinationRepo + "\terraform.tfvars")
+                #out variable tfcontent to new terraform.tfvars file
 
             #update _backend.tf
             Get-ChildItem -Path $DestinationRepo -filter "*_backend.tf" | foreach-object {

@@ -6,7 +6,7 @@
             $SourceRepo,
             [Parameter(Mandatory=$true)]
             [String]
-            $DestinationRepo <#,
+            $DestinationRepo,
             [Parameter(Mandatory=$false)]
             [String]
             $Backend,
@@ -21,17 +21,19 @@
             $Key,
             [Parameter(Mandatory=$false)]
             [String]
+            $KeyFolder,
+            [Parameter(Mandatory=$false)]
+            [String]
             $Region,
             [Parameter(Mandatory=$false)]
             [String]
-            $Commands,
+            $Commands<#,
             [Parameter(Mandatory=$false)]
             [String]
             $OptVarsFile   #> 
         )#END PARAMETER ENTRY
-        #Need to update the beginning to have destination repo set to a variable that takes the last folder or name of the path given
-        # rename item on backend does not work if a full path is entered for destination repo
-    #check path for source
+        
+        #check path for source
     if (!(Test-Path $SourceRepo)) {Write-warning "-message Folder: `"$SourceRepo`" Does not exist.  Please specify a valid Source repository"
         BREAK
         }#End test source repo check
@@ -72,12 +74,27 @@
                 }#end parsing variables from current tfcontent file into var tfcontentnewvars
                 if ($PSBoundParameters.ContainsKey('Key') -eq $true) {
                     $i = 0
-                    foreach ($line in $tfcontentNewVars){
-                        if ($line -match "Key"){
-                                   $tfcontentNewVars[$i] = $line.split("=")[0] + " = " + ($line.split("=")[1].replace($($line).split("=")[1],($key+".tfstate")))
-                        }#end if match Key
-                        $i++
-                    }#end new line match and replace
+                    
+                    if ($PSBoundParameters.ContainsKey('KeyFolder') -eq $true) {
+                        foreach ($line in $tfcontentNewVars){
+                            if ($line -match "Key"){
+                                        #creating tfvars file with key param, keyfolder param present
+                                       $tfcontentNewVars[$i] = $line.split("=")[0] + " = " + ($line.split("=")[1].replace($($line).split("=")[1],($keyfolder + "/" + $key+".tfstate")))
+                            }#end if match Key
+                            $i++
+                        }#end new line match and replace
+
+                    } #end check for keyfolder param
+                    else{
+                        foreach ($line in $tfcontentNewVars){
+                            if ($line -match "Key"){
+                                        #creating tfvars file with key param, no keyfolder
+                                       $tfcontentNewVars[$i] = $line.split("=")[0] + " = " + ($line.split("=")[1].replace($($line).split("=")[1],($key+".tfstate")))
+                            }#end if match Key
+                            $i++
+                        }#end new line match and replace
+                    }# end no keyfolder param - key goes to default root of s3
+
                 }#end psbound check for key variable
                 else{
                     $i = 0
@@ -96,19 +113,41 @@
                                 else{
                                     $key = $DestinationRepo
                                 }#end else check to se if destination repo is not full folder path
+
+                                if ($PSBoundParameters.ContainsKey('KeyFolder') -eq $true) {
+                                                   $tfcontentNewVars[$i] = $line.split("=")[0] + " = " + ($line.split("=")[1].replace($($line).split("=")[1],($keyfolder + "/" + $key+".tfstate")))
+                                } #end check for keyfolder param
+                                    #creating tfvars file with definationrepo as name of key value
                                    $tfcontentNewVars[$i] = $line.split("=")[0] + " = " + ($line.split("=")[1].replace($($line).split("=")[1],($key+".tfstate")))
                         }#end if match Key
                         $i++
                     }#end new line match and replace on tfcontentnewvars
 
                 } #end no Key variable set - took key setting from tfcontentnewvars and imported it into the tfcontent file
+                $paramcheckloop = @("backend","Encrypt","bucket","region","commands") #standard replace on tfvars lines.  No special editing to lines needed, simple replace
+                foreach ($paramcheck in $paramcheckloop){
+                    if ($PSBoundParameters.ContainsKey($varcheck) -eq $true){
+                        $i = 0
+                        foreach ($line in $tfcontentNewVars){
+                            if ($line -match $paramcheck){
+                                        #creating tfvars file with key param, keyfolder param present
+                                       $tfcontentNewVars[$i] = $line.split("=")[0] + " = " + ($line.split("=")[1].replace($($line).split("=")[1],($paramcheck)))
+                            }#end if match Key
+                            $i++
+                        }#end new line match and replace
+                    }#end if varscheckloop variable is entered into script
+                }
+                
+                else{} #end foreach paramcheck loop. do nothing to the tfvars with  - copy it from source tfvars file.
+
                 #take all necessary variables from tfcontentnewvars and enter into tfcontent
                 $tfupdatelist = @("backend","encrypt","bucket","key","region","commands")
                 foreach($tf in $tfupdatelist){
                     $i = 0
                     foreach ($line in $tfcontent){
-                        if ($line -match $tf){
-                                   $tfcontent[$i] = $tfcontentNewVars -match $tf
+                        if ($line -like "$tf*"){
+                                   $tfcontent[$i] = $tfcontentNewVars -like "$tf*=*"
+                                   
                         }#end if match Key
                         $i++
                     }#end new line match and replace
@@ -118,8 +157,23 @@
                 #out variable tfcontent to new terraform.tfvars file
 
             #update _backend.tf
+            
+            if($DestinationRepo[$destinationrepo.Length -1] -eq "\"){
+                                    $l = $DestinationRepo.Length -1
+                                    $DestinationRepo = $DestinationRepo.Substring(0,$l)
+                                }#if destinationrepo ends in "\" remove the \ for splitting of name
+                                else{}#do nothing if the last character is not \
+
+                                if($DestinationRepo.Split("\").Count -gt 1){
+                                    $backendname = ($DestinationRepo.Split("\"))[($DestinationRepo.Split("\").count-1)]
+                                }#end if check to see if destination repo is full folder path
+                                else{
+                                    $backendname = $DestinationRepo
+                                }
+            
+            
             Get-ChildItem -Path $DestinationRepo -filter "*_backend.tf" | foreach-object {
-                Rename-Item -path $_.fullname -NewName ($destinationrepo + "_backend.tf")
+                Rename-Item -path $_.fullname -NewName ($backendname + "_backend.tf")
                 }#end rename of the _backend.tf file
             
                 } #end creation of new destination repo and copy of files into repo
@@ -129,10 +183,4 @@
         }
         }
 
-        get-childitem -path ($scriptpath + "\admpwd.ps") -recurse |Foreach-object {
-        Copy-item -literalpath $_.fullname -destination "C:\Windows\System32\WindowsPowerShell\v1.0\Modules\admpwd.ps"
 }
-        
-
-
-    }

@@ -30,7 +30,7 @@ $terragruntEXE = "terragrunt.exe"
 
     if ($checks -eq 3){
         write-host ""
-        write-host "All validation checks complete.  Terraform can successfully connect to your AWS instance -ForegroundColor Green"
+        write-host "All validation checks complete.  Terraform can successfully connect to your AWS instance" -ForegroundColor Green
         write-host ""
 
     }

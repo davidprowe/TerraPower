@@ -72,10 +72,10 @@
                     }#end if line contains an =
                     $i++
                 }#end parsing variables from current tfcontent file into var tfcontentnewvars
-                if ($PSBoundParameters.ContainsKey('Key') -eq $true) {
+                if ($PSBoundParameters.ContainsKey("Key") -eq $true) {
                     $i = 0
                     
-                    if ($PSBoundParameters.ContainsKey('KeyFolder') -eq $true) {
+                    if ($PSBoundParameters.ContainsKey("KeyFolder") -eq $true) {
                         foreach ($line in $tfcontentNewVars){
                             if ($line -match "Key"){
                                         #creating tfvars file with key param, keyfolder param present
@@ -113,12 +113,12 @@
                                 else{
                                     $key = $DestinationRepo
                                 }#end else check to se if destination repo is not full folder path
-
-                                if ($PSBoundParameters.ContainsKey('KeyFolder') -eq $true) {
+                               
+                                if ($PSBoundParameters.ContainsKey("KeyFolder") -eq $true) {
                                                    $tfcontentNewVars[$i] = $line.split("=")[0] + " = " + ($line.split("=")[1].replace($($line).split("=")[1],($keyfolder + "/" + $key+".tfstate")))
                                 } #end check for keyfolder param
                                     #creating tfvars file with definationrepo as name of key value
-                                   $tfcontentNewVars[$i] = $line.split("=")[0] + " = " + ($line.split("=")[1].replace($($line).split("=")[1],($key+".tfstate")))
+                                else{$tfcontentNewVars[$i] = $line.split("=")[0] + " = " + ($line.split("=")[1].replace($($line).split("=")[1],($key+".tfstate")))}
                         }#end if match Key
                         $i++
                     }#end new line match and replace on tfcontentnewvars
@@ -126,19 +126,20 @@
                 } #end no Key variable set - took key setting from tfcontentnewvars and imported it into the tfcontent file
                 $paramcheckloop = @("backend","Encrypt","bucket","region","commands") #standard replace on tfvars lines.  No special editing to lines needed, simple replace
                 foreach ($paramcheck in $paramcheckloop){
-                    if ($PSBoundParameters.ContainsKey($varcheck) -eq $true){
+                    if ($PSBoundParameters.ContainsKey($paramcheck) -eq $true){
                         $i = 0
                         foreach ($line in $tfcontentNewVars){
                             if ($line -match $paramcheck){
                                         #creating tfvars file with key param, keyfolder param present
                                        $tfcontentNewVars[$i] = $line.split("=")[0] + " = " + ($line.split("=")[1].replace($($line).split("=")[1],($paramcheck)))
-                            }#end if match Key
+                            }
+                            else{}#end if match Key
                             $i++
                         }#end new line match and replace
                     }#end if varscheckloop variable is entered into script
                 }
                 
-                else{} #end foreach paramcheck loop. do nothing to the tfvars with  - copy it from source tfvars file.
+                #end foreach paramcheck loop. do nothing to the tfvars with  - copy it from source tfvars file.
 
                 #take all necessary variables from tfcontentnewvars and enter into tfcontent
                 $tfupdatelist = @("backend","encrypt","bucket","key","region","commands")

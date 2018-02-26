@@ -1,12 +1,7 @@
 
-
-<#get parameters by searching for each line that has a {
-    if line has a bracket make first word a key value.  Search for next bracket
-    
-    if you find another bracket - make this new field a array with key values add a number to the bracket search, so that it has to find the next bracket
-
-or maybe import file, remove all return characters and make array based on the values.
-#>
+#gotta figure out lines that begine with "module * {" - because like the main.tf that is the building block of a new environment
+#lines that begin with # are commented out - possible skip those or . remove all spaces into a temp imported file and check for module*{ then output that it is a module file
+    # to which it then runs a different work stream.
 function Import-TerraHCLFile{
     Param (
             [Parameter(Mandatory=$true)]
@@ -14,7 +9,7 @@ function Import-TerraHCLFile{
             $file
     )#end param entry
     $array = @{}
-    try{$file = get-content -raw -path $file
+    try{$file = get-content -path $file
 
         ($file -replace "`n","" -replace "`r","," ) -split "," |ForEach-Object {
            if ($_ -like "*=*"){
